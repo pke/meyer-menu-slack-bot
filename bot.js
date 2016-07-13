@@ -58,59 +58,77 @@ function formatCurrency(amount) {
   return Number(amount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })
 }
 
-app.post("/action", checkSlackToken, (req, res) => {
+app.use(checkSlackToken)
+
+const getSession = (req, res, next) => {
+  var userId = req.query.user_id
+  storage.getItem(userId, (error, session) => {
+    req.session = session
+    next()
+  })
+}
+
+app.use(getSession)
+
+app.post("/action", (req, res) => {
 
 })
 
-app.get("/", checkSlackToken, function(req, res) {
+const addEmployeeDirectory = message => (
+  message.attach({
+    text: "Diese Mitarbeiter sind bekannt und können sich allein mit der Kundennummer anmelden",
+    fields: EMPLOYEES.map(user =>({
+      title: user.name,
+      value: user.customerId,
+      short: true}))
+  })
+)
+
+app.get("/", function(req, res) {
   console.log(req.query)
   var userId = req.query.user_id
-  var command = req.query.command || "/lunch"
-  var session = storage.getItemSync(userId)
+  var getSessionAsync = Promise.resolve(req.session)
   var responseUrl = req.query.response_url
+
+  if (/source/i.test(req.query.text)) {
+    return slackMessage(res, "https://github.com/pke/meyer-menu-slack-bot").send()
+  }
 
   if (/bier|beer/i.test(req.query.text)) {
     return slackMessage(res, "Bier ab *vier*! :beers:").sendInChannel()
   }
-  
-  res.send({ text: "Mal sehen was es heute zu essen gibt..." })
 
-  var getSessionAsync = session 
-    ? Promise.resolve(session)
-    : Promise.reject(new Error("Bitte einmalig anmelden mit `" + command + " login kundennummer [pin]`"))
   var match
   if ((match = /^login\s*(\w+)?\s*(\w+)?$/.exec(req.query.text))) {
-    session = null
+    res.send({ text: "Anmelden..." })
     var customerId = match[1]
     var pin = match[2]
     if (!customerId) {
-      getSessionAsync = Promise.reject(new Error("Keine Kundennummer angegeben."))
-    } else {
+      return addEmployeeDirectory(slackMessage(responseUrl, "Keine Kundennummer angegeben.")).send()
+    }
+    if (!pin) {
+      EMPLOYEES.some(user => {
+        if (user.customerId == customerId) {
+          pin = user.pin
+          return true
+        }
+      })
       if (!pin) {
-        EMPLOYEES.some(function(user) {
-          if (user.customerId == customerId) {
-            pin = user.pin
-            return true
-          }
-        })
+        return addEmployeeDirectory(slackMessage(responseUrl, `Kein Mitarbeiter mit Kundennummer ${customerId} gefunden. Bitte mit Kundennummer und Pin einloggen`)).send()
       }
     }
-    if (!pin && customerId) {
-      getSessionAsync = Promise.reject(new Error("Kein Mitarbeiter mit Kundennummer " + customerId + " gefunden. Bitte mit Kundennummer und Pin einloggen"))
-    } else if (pin && customerId) {
-      getSessionAsync = loginAsync(customerId, pin)
-      .then(function(_session) {
-        session = _session
-        // Save the customerId (which is different for the API calls than the login customerId)
-        // It would all be much easier, if API calls would just need the accessToken and
-        // not an additional customerId in the URLs
-        session.customerId = session.customer.customerId
+    getSessionAsync = loginAsync(customerId, pin)
+      .then(function(session) {
+        // .setItem returns not the `session` but an array of persisted items
+        // Each item contains the persist metadata but not the `session` itself
+        // Thats why we return the session ourself in the `.then` handler
         return storage.setItem(userId, session)
-      }).then(function() {
-        return session
+        .then(() => session)
       })
-    }
   }
+
+  res.status(200).send()
+
   getSessionAsync.then(function(session) {
     // Old records had this not saved in this flattend way
     session.customerId = session.customerId || session.customer.customerId
@@ -120,6 +138,7 @@ app.get("/", checkSlackToken, function(req, res) {
         slackMessage(responseUrl, "Guthaben: " + formatCurrency(result.balance)).send()
       }) 
     } else {
+      slackMessage(responseUrl, `Mal sehen was es heute für Dich zu essen gibt, ${firstName(session.customer.name)}...`).send()
       // this does not work yet, make MS botbuilder work and help us here with date
       // resolution
       let date = moment()
@@ -153,13 +172,13 @@ app.get("/", checkSlackToken, function(req, res) {
           nextDay: "[morgen]",
           nextWeek: "dddd",
         })}:` 
-        menus.map(function(menu) {
+        menus.map(menu => {
           const message = slackMessage(responseUrl, text)
           .attachMenu(menu)
           if (menu.incredients) {
             message.attach({
               title: "Nährwerte",
-              fields: menu.incredients.map(function(incredient) {
+              fields: menu.incredients.map(incredient => {
                 return {
                   title: incredient.name,
                   value: `${incredient.amount} ${incredient.unit}`,
@@ -174,18 +193,7 @@ app.get("/", checkSlackToken, function(req, res) {
     }
   }).catch(error => {
     console.error(error)
-    if (!session) {
-      slackMessage(responseUrl, error.message)
-      .attach({
-        text: "Diese Mitarbeiter sind bekannt und können sich nur durch login mit der Kundennummer anmelden",
-        fields: EMPLOYEES.map(user =>({
-          title: user.name,
-          value: user.customerId,
-          short: true}))
-      }).send()
-    } else {  
-      //res.status(500).send(error.message)
-    }
+    slackMessage(responseUrl, error.message)
   })
 })
 
