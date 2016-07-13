@@ -22,6 +22,6 @@ const EMPLOYEES = [
 ].sort(function(a,b) { return a.name.localeCompare(b.name) })
 
 
-module.export = {
+module.exports = {
   EMPLOYEES 
 }
