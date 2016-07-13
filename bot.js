@@ -2,7 +2,7 @@ const storage = require("node-persist")
 const express = require("express")
 const moment = require("moment")
 
-const { EMPLOYEES } = require("./employees") 
+const { EMPLOYEES } = require("./employees")
 
 const { loginAsync, getBalanceAsync, getMenusForDay } = require("./api")
 const { checkSlackToken, message: slackMessage } = require("./slack")
@@ -57,6 +57,10 @@ function firstName(name) {
 function formatCurrency(amount) {
   return Number(amount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })
 }
+
+app.post("/action", checkSlackToken, (req, res) => {
+
+})
 
 app.get("/", checkSlackToken, function(req, res) {
   console.log(req.query)
