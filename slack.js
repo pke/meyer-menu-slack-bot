@@ -33,8 +33,11 @@ const message = (responseOrURL, text) => {
 
     attach({title, text, imageUrl, footer, fields}) {
       const attachment = {
-        title, text, image_url: imageUrl, footer, fields,
+        title, text, image_url: imageUrl, footer,
         mrkdwn_in: ["title", "text", "fields"],
+      }
+      if (fields) {
+        attachment.fields = fields
       }
       if (message.attachments) {
         message.attachments.push(attachment)
