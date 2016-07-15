@@ -75,136 +75,125 @@ app.use(function* requestLogger(next) {
 
 app.use(checkSlackToken)
 
-app.use(function* getUser(next) {
-  const userId = this.query.user_id
-  this.state.session = storage.getItemSync(userId)
-  yield next
-})
+const addEmployeeDirectory = message => (
+  message.attach({
+    text: "Diese Mitarbeiter sind bekannt und können sich allein mit der Kundennummer anmelden",
+    fields: EMPLOYEES.map(user =>({
+      title: user.name,
+      value: user.customerId,
+      short: true}))
+  })
+)
 
-app.use(function* main(next) {
-  yield next
-  const command = this.query.command || "/lunch"
-  let session = this.state.session
-  const responseUrl = this.query.response_url
+app.use(function* publicAccess(next) {
+  if (/source/i.test(this.query.text)) {
+    return slackMessage(this.response, "https://github.com/pke/meyer-menu-slack-bot").send()
+  }
 
   if (/bier|beer/i.test(this.query.text)) {
     return slackMessage(this.response, "Bier ab *vier*! :beers:").sendInChannel()
   }
   
-  this.body = { text: "Mal sehen was es heute zu essen gibt..." }
-  
-  var getSessionAsync = session 
-    ? Promise.resolve(session)
-    : Promise.reject(new Error("Bitte einmalig anmelden mit `" + command + " login kundennummer [pin]`"))
+  const responseUrl = this.query.response_url
+  const userId = this.query.user_id
   var match
   if ((match = /^login\s*(\w+)?\s*(\w+)?$/.exec(this.query.text))) {
-    session = null
+    this.body = { text: "Anmelden..." }
     var customerId = match[1]
     var pin = match[2]
     if (!customerId) {
-      getSessionAsync = Promise.reject(new Error("Keine Kundennummer angegeben."))
-    } else {
+      return addEmployeeDirectory(slackMessage(responseUrl, "Keine Kundennummer angegeben.")).send()
+    }
+    if (!pin) {
+      EMPLOYEES.some(user => {
+        if (user.customerId == customerId) {
+          pin = user.pin
+          return true
+        }
+      })
       if (!pin) {
-        EMPLOYEES.some(function(user) {
-          if (user.customerId == customerId) {
-            pin = user.pin
-            return true
-          }
-        })
+        return addEmployeeDirectory(slackMessage(responseUrl, `Kein Mitarbeiter mit Kundennummer ${customerId} gefunden. Bitte mit Kundennummer und Pin anmelden`)).send()
       }
     }
-    if (!pin && customerId) {
-      getSessionAsync = Promise.reject(new Error("Kein Mitarbeiter mit Kundennummer " + customerId + " gefunden. Bitte mit Kundennummer und Pin einloggen"))
-    } else if (pin && customerId) {
-      getSessionAsync = loginAsync(customerId, pin)
-      .then(function(_session) {
-        session = _session
-        // Save the customerId (which is different for the API calls than the login customerId)
-        // It would all be much easier, if API calls would just need the accessToken and
-        // not an additional customerId in the URLs
-        session.customerId = session.customer.customerId
+    this.state.session = yield loginAsync(customerId, pin)
+      .then(session => {        
+        // .setItem returns not the `session` but an array of persisted items
+        // Each item contains the persist metadata but not the `session` itself
+        // Thats why we return the session ourself in the `.then` handler
         return storage.setItem(userId, session)
-      }).then(function() {
-        return session
+        .then(() => session)
       })
+  }
+  yield next
+})
+
+app.use(function* getUser(next) {
+  if (!this.state.session) {
+    const userId = this.query.user_id
+    if (!(this.state.session = storage.getItemSync(userId))) {
+      this.status = 401
+      return addEmployeeDirectory(slackMessage(this.response, "Bitte erst anmelden")).send()
     }
   }
-  getSessionAsync.then(function(session) {
-    // Old records had this not saved in this flattend way
-    session.customerId = session.customerId || session.customer.customerId
-    if (/balance/.test(req.query.text)) {
-      getBalanceAsync(session.accessToken)
-      .then(function(result) {
-        slackMessage(responseUrl, "Guthaben: " + formatCurrency(result.balance)).send()
-      }) 
-    } else {
-      // this does not work yet, make MS botbuilder work and help us here with date
-      // resolution
-      let date = moment()
-      var when
-      const setDays = [ 1, 1, 4, 4, 4, 8, 8 ]
-      if ((when = /(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/.exec(req.query.text))) {
-        switch (when[1]) {
-        case "tomorrow": date = date.add(1, "day"); break
-        case "monday": date = date.day(setDays[1]); break
-        case "tuesday": date = date.day(setDays[2]); break
-        case "wednesday": date = date.day(setDays[3]); break
-        case "thursday": date = date.day(setDays[4]); break
-        case "friday": date = date.day(setDays[5]); break
-        case "saturday":
-        case "sunday": {
-          return slackMessage(responseUrl, "Am Wochende wird doch nicht gearbeitet!").send()
-        }
-        }
+  yield next
+})
+
+app.use(function* main(next) {
+  yield next
+  const session = this.state.session
+  const responseUrl = this.query.response_url || this.response
+  
+  this.status = 200
+
+  // Old records had this not saved in this flattend way
+  session.customerId = session.customerId || session.customer.customerId
+  if (/balance/.test(this.query.text)) {
+    getBalanceAsync(session.accessToken)
+    .then(function(result) {
+      slackMessage(responseUrl, "Guthaben: " + formatCurrency(result.balance)).send()
+    }) 
+  } else {
+    slackMessage(responseUrl, `Mal sehen was es heute für Dich zu essen gibt, ${firstName(session.customer.name)}...`).send()
+    // this does not work yet, make MS botbuilder work and help us here with date
+    // resolution
+    let date = moment()
+    var when
+    const setDays = [ 1, 1, 4, 4, 4, 8, 8 ]
+    if ((when = /(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/.exec(this.query.text))) {
+      switch (when[1]) {
+      case "tomorrow": date = date.add(1, "day"); break
+      case "monday": date = date.day(setDays[1]); break
+      case "tuesday": date = date.day(setDays[2]); break
+      case "wednesday": date = date.day(setDays[3]); break
+      case "thursday": date = date.day(setDays[4]); break
+      case "friday": date = date.day(setDays[5]); break
+      case "saturday":
+      case "sunday": {
+        return slackMessage(responseUrl, "Am Wochende wird doch nicht gearbeitet!").send()
       }
-      getMenusForDay(session, date.toDate(), {
-        details: /details?/.test(req.query.text) 
-      }).then(function(menus) {
-        if (!menus.length) {
-          return slackMessage(
-            responseUrl, 
-            `Hmm, heute kann ich irgendwie nicht sehen, dass Du was bestellt hättest, ${firstName(session.customer.name)}. Du kannst ${date.calendar()} leider nicht am Mittagessen teilnehmen :rage:`
-          ).send()
-        }
-        var text = `${firstName(session.customer.name)}, für Dich gibt's ${date.calendar(null, {
-          sameDay: "[heute]",
-          nextDay: "[morgen]",
-          nextWeek: "dddd",
-        })}:` 
-        menus.map(function(menu) {
-          const message = slackMessage(responseUrl, text)
-          .attachMenu(menu)
-          if (menu.incredients) {
-            message.attach({
-              title: "Nährwerte",
-              fields: menu.incredients.map(function(incredient) {
-                return {
-                  title: incredient.name,
-                  value: `${incredient.amount} ${incredient.unit}`,
-                  short: true, 
-                }
-              }),
-            }) 
-          }
-          message.send()
-        })
+      }
+    }
+    getMenusForDay(session, date.toDate(), {
+      details: /details?/.test(this.query.text) 
+    }).then(function(menus) {
+      if (!menus.length) {
+        return slackMessage(
+          responseUrl, 
+          `Hmm, heute kann ich irgendwie nicht sehen, dass Du was bestellt hättest, ${firstName(session.customer.name)}. Du kannst ${date.calendar()} leider nicht am Mittagessen teilnehmen :rage:`
+        ).send()
+      }
+      var text = `${firstName(session.customer.name)}, für Dich gibt's ${date.calendar(null, {
+        sameDay: "[heute]",
+        nextDay: "[morgen]",
+        nextWeek: "dddd",
+      })}:` 
+      menus.map(menu => {
+        slackMessage(responseUrl, text)
+        .attachMenu(menu)
+        .send()
       })
-    }
-  }).catch(error => {
-    console.error(error.message, error)
-    if (!session) {
-      slackMessage(responseUrl, error.message)
-      .attach({
-        text: "Diese Mitarbeiter sind bekannt und können sich nur durch login mit der Kundennummer anmelden",
-        fields: EMPLOYEES.map(user =>({
-          title: user.name,
-          value: user.customerId,
-          short: true}))
-      }).send()
-    } else {  
-      //res.status(500).send(error.message)
-    }
-  })
+    })
+  }
 })
 
 const server = app.listen(1337, () => {

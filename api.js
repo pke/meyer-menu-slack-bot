@@ -52,9 +52,13 @@ const requestAsync = (method, path, data, accessToken) => {
 const loginAsync = (customerId, pinCode) => {
   return requestAsync("POST", "/auth/login", { customerId, pinCode })
   .then(function(result) {
+    // Save the customerId (which is different for the API calls than the login customerId)
+    // It would all be much easier, if API calls would just need the accessToken and
+    // not an additional customerId in the URLs
     return {
       accessToken: result.response.headers.get("Access-Token"),
       customer: result.json,
+      customerId: result.json.customerId,
     }
   })
 }
