@@ -2,6 +2,10 @@ const storage = require("node-persist")
 const express = require("express")
 const moment = require("moment")
 
+require("./logging")
+
+console.info("Bot started")
+
 const { EMPLOYEES } = require("./employees")
 
 const { loginAsync, getBalanceAsync, getMenusForDay } = require("./api")
@@ -62,7 +66,7 @@ app.post("/action", checkSlackToken, (req, res) => {
 
 })
 
-app.get("/", checkSlackToken, function(req, res) {
+app.get("/", checkSlackToken, (req, res) => {
   console.log(req.query)
   var userId = req.query.user_id
   var command = req.query.command || "/lunch"
@@ -173,7 +177,7 @@ app.get("/", checkSlackToken, function(req, res) {
       })
     }
   }).catch(error => {
-    console.error(error)
+    console.error(error.message, error)
     if (!session) {
       slackMessage(responseUrl, error.message)
       .attach({
@@ -189,8 +193,8 @@ app.get("/", checkSlackToken, function(req, res) {
   })
 })
 
-var server = app.listen(1337, function () {
-  var host = server.address().address
-  var port = server.address().port
-  console.log("meyer menu bot listening at http://%s:%s", host, port)
+const server = app.listen(1337, () => {
+  const host = server.address().address
+  const port = server.address().port
+  console.info("meyer menu bot listening at http://%s:%s", host, port)
 })
