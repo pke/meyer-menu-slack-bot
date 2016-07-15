@@ -1,13 +1,15 @@
 const fetch = require("isomorphic-fetch")
 const { imageUrl } = require("./api")
 
-function postAsync(responseUrl, message) {
-  return fetch(responseUrl, {
+function postMessage(responseUrl, message) {
+  fetch(responseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json;charset=UTF-8"
     },  
     body: JSON.stringify(message), 
+  }).catch(error => {
+    console.error("Could not send to %s", responseUrl, { message, error })
   })
 }
 
@@ -50,24 +52,26 @@ const message = (responseOrURL, text) => {
 
     send(destination) {
       if (destination) {
-        message.reponse_type = destination
+        message.response_type = destination
       }
-      console.log(message)
+      console.info(message)
       if (typeof responseOrURL === "string") {
-        return postAsync(responseOrURL, message)
+        postMessage(responseOrURL, message)
       } else {
-        return responseOrURL.send(message)
+        responseOrURL.body = message
       }
     }
   }
 }
 
 
-function checkSlackToken(req, res, next) {
-  if (["Q4p9aXw3H53vy8gIirlBmITm"].indexOf(req.query.token) == -1) {
-    return res.status(401).send("You are not allowed to ask me anything")
+function* checkSlackToken(next) {
+  if (["Q4p9aXw3H53vy8gIirlBmITm"].indexOf(this.query.token) == -1) {
+    this.status = 401
+    this.message = "You are not allowed to ask me anything"
+    return
   }
-  next()
+  yield next
 }
 
 module.exports = {

@@ -1,5 +1,5 @@
 const storage = require("node-persist")
-const express = require("express")
+const koa = require("koa")
 const moment = require("moment")
 
 require("./logging")
@@ -11,7 +11,8 @@ const { EMPLOYEES } = require("./employees")
 const { loginAsync, getBalanceAsync, getMenusForDay } = require("./api")
 const { checkSlackToken, message: slackMessage } = require("./slack")
 
-const app = express()
+const app = koa()
+
 storage.initSync()
 
 /*
@@ -52,38 +53,51 @@ loginAsync("335515", "3437").then(function(session) {
 })
 */
 
-
 function firstName(name) {
   return name.split(" ")[0]
 }
-
 
 function formatCurrency(amount) {
   return Number(amount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })
 }
 
-app.post("/action", checkSlackToken, (req, res) => {
-
+app.use(function* responseTime(next) {
+  const start = Date.now()
+  yield next
+  const duration = Date.now() - start
+  this.set("X-Response-Time", duration)
 })
 
-app.get("/", checkSlackToken, (req, res) => {
-  console.log(req.query)
-  var userId = req.query.user_id
-  var command = req.query.command || "/lunch"
-  var session = storage.getItemSync(userId)
-  var responseUrl = req.query.response_url
+app.use(function* requestLogger(next) {
+  console.info("%s", this.method, this.query)
+  yield next
+})
 
-  if (/bier|beer/i.test(req.query.text)) {
-    return slackMessage(res, "Bier ab *vier*! :beers:").sendInChannel()
+app.use(checkSlackToken)
+
+app.use(function* getUser(next) {
+  const userId = this.query.user_id
+  this.state.session = storage.getItemSync(userId)
+  yield next
+})
+
+app.use(function* main(next) {
+  yield next
+  const command = this.query.command || "/lunch"
+  let session = this.state.session
+  const responseUrl = this.query.response_url
+
+  if (/bier|beer/i.test(this.query.text)) {
+    return slackMessage(this.response, "Bier ab *vier*! :beers:").sendInChannel()
   }
   
-  res.send({ text: "Mal sehen was es heute zu essen gibt..." })
-
+  this.body = { text: "Mal sehen was es heute zu essen gibt..." }
+  
   var getSessionAsync = session 
     ? Promise.resolve(session)
     : Promise.reject(new Error("Bitte einmalig anmelden mit `" + command + " login kundennummer [pin]`"))
   var match
-  if ((match = /^login\s*(\w+)?\s*(\w+)?$/.exec(req.query.text))) {
+  if ((match = /^login\s*(\w+)?\s*(\w+)?$/.exec(this.query.text))) {
     session = null
     var customerId = match[1]
     var pin = match[2]
@@ -195,6 +209,6 @@ app.get("/", checkSlackToken, (req, res) => {
 
 const server = app.listen(1337, () => {
   const host = server.address().address
-  const port = server.address().port
-  console.info("meyer menu bot listening at http://%s:%s", host, port)
+  const port = server.address().port  
+  console.info("listening and serving lunch at %s:%s", host, port)
 })
