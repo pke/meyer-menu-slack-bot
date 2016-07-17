@@ -1,7 +1,7 @@
 const fetch = require("isomorphic-fetch")
 const { imageUrl } = require("./api")
 
-function postMessage(responseUrl, message) {
+const postMessage = (responseUrl, message) => (
   fetch(responseUrl, {
     method: "POST",
     headers: {
@@ -10,8 +10,9 @@ function postMessage(responseUrl, message) {
     body: JSON.stringify(message), 
   }).catch(error => {
     console.error("Could not send to %s", responseUrl, { message, error })
+    throw error
   })
-}
+)
 
 const menuAttachment = menu => ({
   title: menu.menulinie + ": " + menu.title,
@@ -74,9 +75,10 @@ const message = (responseOrURL, text) => {
       }
       console.info(message)
       if (typeof responseOrURL === "string") {
-        postMessage(responseOrURL, message)
+        return postMessage(responseOrURL, message)
       } else {
         responseOrURL.body = message
+        return Promise.resolve(responseOrURL)
       }
     }
   }
