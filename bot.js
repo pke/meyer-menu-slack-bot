@@ -6,6 +6,22 @@ require("./logging")
 
 console.info("Bot started")
 
+const builder = require("botbuilder")
+const model = "https://api.projectoxford.ai/luis/v1/application?id=ae8c3d46-7015-4efb-9c40-883688b58782&subscription-key=da0336fd361841699fe89778c43cba48"
+
+function recognizeAync(utterance) {
+  return new Promise((c, e) => {
+    builder.LuisRecognizer.recognize(utterance, model, (err, intents, entities) => {
+      if (err) {
+        e(err)
+      } else {
+        //builder.EntityRecognizer.resolveTime(entities)
+        return c({ intents, entities })
+      }
+    })  
+  })
+}
+
 const { EMPLOYEES } = require("./employees")
 
 const { loginAsync, getBalanceAsync, getMenusForDay } = require("./api")
@@ -144,56 +160,55 @@ app.use(function* main(next) {
   const responseUrl = this.query.response_url || this.response
   
   this.status = 200
+  this.body = ""
 
   // Old records had this not saved in this flattend way
   session.customerId = session.customerId || session.customer.customerId
-  if (/balance/.test(this.query.text)) {
-    getBalanceAsync(session.accessToken)
-    .then(function(result) {
-      slackMessage(responseUrl, "Guthaben: " + formatCurrency(result.balance)).send()
-    }) 
-  } else {
-    slackMessage(responseUrl, `Mal sehen was es heute für Dich zu essen gibt, ${firstName(session.customer.name)}...`).send()
-    // this does not work yet, make MS botbuilder work and help us here with date
-    // resolution
-    let date = moment()
-    var when
-    const setDays = [ 1, 1, 4, 4, 4, 8, 8 ]
-    if ((when = /(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/.exec(this.query.text))) {
-      switch (when[1]) {
-      case "tomorrow": date = date.add(1, "day"); break
-      case "monday": date = date.day(setDays[1]); break
-      case "tuesday": date = date.day(setDays[2]); break
-      case "wednesday": date = date.day(setDays[3]); break
-      case "thursday": date = date.day(setDays[4]); break
-      case "friday": date = date.day(setDays[5]); break
-      case "saturday":
-      case "sunday": {
-        return slackMessage(responseUrl, "Am Wochende wird doch nicht gearbeitet!").send()
-      }
-      }
-    }
-    getMenusForDay(session, date.toDate(), {
-      details: /details?/.test(this.query.text) 
-    }).then(function(menus) {
-      if (!menus.length) {
-        return slackMessage(
-          responseUrl, 
-          `Hmm, heute kann ich irgendwie nicht sehen, dass Du was bestellt hättest, ${firstName(session.customer.name)}. Du kannst ${date.calendar()} leider nicht am Mittagessen teilnehmen :rage:`
-        ).send()
-      }
-      var text = `${firstName(session.customer.name)}, für Dich gibt's ${date.calendar(null, {
-        sameDay: "[heute]",
-        nextDay: "[morgen]",
-        nextWeek: "dddd",
-      })}:` 
-      menus.map(menu => {
-        slackMessage(responseUrl, text)
-        .attachMenu(menu)
-        .send()
+  recognizeAync(this.query.text).then(result => {
+    const { intents, entities } = result 
+    switch (intents[0].intent) {
+    case "getBalance":
+      slackMessage(responseUrl, "Warte, ich schaue mal nach wieviel :euro: Du noch zum Bestellen hast...").send()
+      .then(() => (
+        getBalanceAsync(session.accessToken)
+          .then(function(result) {
+            const numberOfMeals = Math.round(result.balance / 3.1)
+            let text
+            if (!numberOfMeals) {
+              text = `Tut mir leid, für die ${formatCurrency(result.balance)}, die Du noch hast, kannst Du nichts mehr bestellen :crying_cat_face:`
+            }
+            else {
+              text = `${firstName(session.customer.name)} Du hast noch ${formatCurrency(result.balance)} zum Bestellen.\nDas reicht für ca. ${numberOfMeals} Menüs.`
+            }
+            slackMessage(responseUrl, text).send()
+          })
+      ))
+      break
+    case "showMenu":
+      const date = moment(builder.EntityRecognizer.resolveTime(entities) || entities[0])
+      slackMessage(responseUrl, `Mal sehen was es heute für Dich zu essen gibt, ${firstName(session.customer.name)}...`).send()
+      getMenusForDay(session, date.toDate(), {
+        details: /details?/.test(this.query.text) 
+      }).then(function(menus) {
+        if (!menus.length) {
+          return slackMessage(
+            responseUrl, 
+            `Hmm, heute kann ich irgendwie nicht sehen, dass Du was bestellt hättest, ${firstName(session.customer.name)}. Du kannst ${date.calendar()} leider nicht am Mittagessen teilnehmen :rage:`
+          ).send()
+        }
+        var text = `${firstName(session.customer.name)}, für Dich gibt's ${date.calendar(null, {
+          sameDay: "[heute]",
+          nextDay: "[morgen]",
+          nextWeek: "dd",
+        })}:` 
+        menus.map(menu => {
+          slackMessage(responseUrl, text)
+          .attachMenu(menu)
+          .send()
+        })
       })
-    })
-  }
+    }
+  })
 })
 
 const server = app.listen(1337, () => {
