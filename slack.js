@@ -1,15 +1,34 @@
 const fetch = require("isomorphic-fetch")
 const { imageUrl } = require("./api")
 
-function postAsync(responseUrl, message) {
-  return fetch(responseUrl, {
+const postMessage = (responseUrl, message) => (
+  fetch(responseUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json;charset=UTF-8"
     },  
     body: JSON.stringify(message), 
+  }).catch(error => {
+    console.error("Could not send to %s", responseUrl, { message, error })
+    throw error
   })
-}
+)
+
+const menuAttachment = menu => ({
+  title: menu.menulinie + ": " + menu.title,
+  text: menu.description,
+  imageUrl: imageUrl(menu.menuimage),
+  footer: "Guten Appetit!",
+})
+
+const menuIncredientAttachment = incredients => ({
+  title: "Nährwerte",
+  fields: incredients.map(incredient => ({
+    title: incredient.name,
+    value: `${incredient.amount} ${incredient.unit}`,
+    short: true, 
+  })),
+})
 
 /**
  * Slack Message Builder
@@ -23,18 +42,20 @@ const message = (responseOrURL, text) => {
   }
   return {
     attachMenu(menu) {
-      return this.attach({
-        title: menu.menulinie + ": " + menu.title,
-        text: menu.description,
-        imageUrl: imageUrl(menu.menuimage),
-        footer: "Guten Appetit!",
-      })
+      var result = this.attach(menuAttachment(menu))
+      if (menu.incredients) {
+        result.attach(menuIncredientAttachment(menu.incredients))
+      }        
+      return result
     },
 
     attach({title, text, imageUrl, footer, fields}) {
       const attachment = {
-        title, text, image_url: imageUrl, footer, fields,
+        title, text, image_url: imageUrl, footer,
         mrkdwn_in: ["title", "text", "fields"],
+      }
+      if (fields) {
+        attachment.fields = fields
       }
       if (message.attachments) {
         message.attachments.push(attachment)
@@ -50,24 +71,28 @@ const message = (responseOrURL, text) => {
 
     send(destination) {
       if (destination) {
-        message.reponse_type = destination
+        message.response_type = destination
       }
-      console.log(message)
+      console.info(message)
       if (typeof responseOrURL === "string") {
-        return postAsync(responseOrURL, message)
+        return postMessage(responseOrURL, message)
       } else {
-        return responseOrURL.send(message)
+        responseOrURL.body = message
+        return Promise.resolve(responseOrURL)
       }
     }
   }
 }
 
 
-function checkSlackToken(req, res, next) {
-  if (["Q4p9aXw3H53vy8gIirlBmITm"].indexOf(req.query.token) == -1) {
-    return res.status(401).send("You are not allowed to ask me anything")
+function* checkSlackToken(next) {
+  if (["Q4p9aXw3H53vy8gIirlBmITm"].indexOf(this.query.token) == -1) {
+    this.throw(401, "You are not allowed to ask me anything")
   }
-  next()
+  if (!this.query.user_id) {
+    this.throw(401, "No user_id given")
+  }
+  yield next
 }
 
 module.exports = {

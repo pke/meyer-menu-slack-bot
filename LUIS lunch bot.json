@@ -1,0 +1,402 @@
+{
+  "luis_schema_version": "1.3.0",
+  "name": "lunch bot",
+  "desc": "",
+  "culture": "en-us",
+  "intents": [
+    {
+      "name": "getBalance"
+    },
+    {
+      "name": "None"
+    },
+    {
+      "name": "showMenu"
+    },
+    {
+      "name": "orderMenu"
+    }
+  ],
+  "entities": [
+    {
+      "name": "menuType"
+    },
+    {
+      "name": "menuDetails"
+    }
+  ],
+  "composites": [],
+  "bing_entities": [
+    "datetime"
+  ],
+  "actions": [],
+  "model_features": [],
+  "regex_features": [],
+  "utterances": [
+    {
+      "text": "my balance",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "next friday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "what do i eat today",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "whats my balance",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "what's my balance",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "whats for next monday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "next wednesday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "next tuesday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "what for tomorrow",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "which menu today",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "what's for lunch today",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "balance",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "how much money do i have left",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "what for today",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "which menu tomorrow",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "monday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "today",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "show my menu",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "next thursday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "tomorrow",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "whats left of my money?",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "order fish for monday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 1,
+          "endPos": 1
+        }
+      ]
+    },
+    {
+      "text": "order menu 1 monday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 2,
+          "endPos": 2
+        }
+      ]
+    },
+    {
+      "text": "order fish on friday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 1,
+          "endPos": 1
+        }
+      ]
+    },
+    {
+      "text": "steak on tuesday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 0,
+          "endPos": 0
+        }
+      ]
+    },
+    {
+      "text": "get me salad on tuesday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 2,
+          "endPos": 2
+        }
+      ]
+    },
+    {
+      "text": "i'll have #1 tomorrow",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 5,
+          "endPos": 5
+        }
+      ]
+    },
+    {
+      "text": "order vegetarian thursday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 1,
+          "endPos": 1
+        }
+      ]
+    },
+    {
+      "text": "get me fish on tuesday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 2,
+          "endPos": 2
+        }
+      ]
+    },
+    {
+      "text": "get me fish on monday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 2,
+          "endPos": 2
+        }
+      ]
+    },
+    {
+      "text": "fish friday",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 0,
+          "endPos": 0
+        }
+      ]
+    },
+    {
+      "text": "how about some meat on thursday?",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 3,
+          "endPos": 3
+        }
+      ]
+    },
+    {
+      "text": "show today with details",
+      "intent": "showMenu",
+      "entities": [
+        {
+          "entity": "menuDetails",
+          "startPos": 3,
+          "endPos": 3
+        }
+      ]
+    },
+    {
+      "text": "show with facts",
+      "intent": "showMenu",
+      "entities": [
+        {
+          "entity": "menuDetails",
+          "startPos": 2,
+          "endPos": 2
+        }
+      ]
+    },
+    {
+      "text": "show today with cals",
+      "intent": "showMenu",
+      "entities": [
+        {
+          "entity": "menuDetails",
+          "startPos": 3,
+          "endPos": 3
+        }
+      ]
+    },
+    {
+      "text": "how much money left?",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "how much left",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "how much left on account",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "whats my balance?",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "which menu?",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "get me fish",
+      "intent": "orderMenu",
+      "entities": [
+        {
+          "entity": "menuType",
+          "startPos": 2,
+          "endPos": 2
+        }
+      ]
+    },
+    {
+      "text": "which menu next monday?",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "show menu this week",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "whats for monday and wednesday next week",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "next 2 weeks",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "on monday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "next week",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "on next monday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "show menu next week",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "next monday",
+      "intent": "showMenu",
+      "entities": []
+    },
+    {
+      "text": "asda",
+      "intent": "None",
+      "entities": []
+    },
+    {
+      "text": "how much remains",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "how much money left",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "how much money",
+      "intent": "getBalance",
+      "entities": []
+    },
+    {
+      "text": "how much money do i have left?",
+      "intent": "getBalance",
+      "entities": []
+    }
+  ]
+}

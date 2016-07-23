@@ -1,13 +1,34 @@
 const storage = require("node-persist")
-const express = require("express")
+const koa = require("koa")
 const moment = require("moment")
+
+//require("./logging")
+
+console.info("Bot started")
+
+const builder = require("botbuilder")
+const model = "https://api.projectoxford.ai/luis/v1/application?id=ae8c3d46-7015-4efb-9c40-883688b58782&subscription-key=da0336fd361841699fe89778c43cba48"
+
+function recognizeAync(utterance) {
+  return new Promise((c, e) => {
+    builder.LuisRecognizer.recognize(utterance, model, (err, intents, entities) => {
+      if (err) {
+        e(err)
+      } else {
+        //builder.EntityRecognizer.resolveTime(entities)
+        return c({ intents, entities })
+      }
+    })  
+  })
+}
 
 const { EMPLOYEES } = require("./employees")
 
 const { loginAsync, getBalanceAsync, getMenusForDay } = require("./api")
 const { checkSlackToken, message: slackMessage } = require("./slack")
 
-const app = express()
+const app = koa()
+
 storage.initSync()
 
 /*
@@ -48,99 +69,126 @@ loginAsync("335515", "3437").then(function(session) {
 })
 */
 
-
 function firstName(name) {
   return name.split(" ")[0]
 }
-
 
 function formatCurrency(amount) {
   return Number(amount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })
 }
 
-app.post("/action", checkSlackToken, (req, res) => {
-
+app.use(function* responseTime(next) {
+  const start = Date.now()
+  yield next
+  const duration = Date.now() - start
+  this.set("X-Response-Time", duration)
 })
 
-app.get("/", checkSlackToken, function(req, res) {
-  console.log(req.query)
-  var userId = req.query.user_id
-  var command = req.query.command || "/lunch"
-  var session = storage.getItemSync(userId)
-  var responseUrl = req.query.response_url
+app.use(function* requestLogger(next) {
+  console.info("%s", this.method, this.query)
+  yield next
+})
 
-  if (/bier|beer/i.test(req.query.text)) {
-    return slackMessage(res, "Bier ab *vier*! :beers:").sendInChannel()
+app.use(checkSlackToken)
+
+const addEmployeeDirectory = message => (
+  message.attach({
+    text: "Diese Mitarbeiter sind bekannt und können sich allein mit der Kundennummer anmelden",
+    fields: EMPLOYEES.map(user =>({
+      title: user.name,
+      value: user.customerId,
+      short: true}))
+  })
+)
+
+app.use(function* publicAccess(next) {
+  if (/source/i.test(this.query.text)) {
+    return slackMessage(this.response, "https://github.com/pke/meyer-menu-slack-bot").send()
+  }
+
+  if (/bier|beer/i.test(this.query.text)) {
+    return slackMessage(this.response, "Bier ab *vier*! :beers:").sendInChannel()
   }
   
-  res.send({ text: "Mal sehen was es heute zu essen gibt..." })
-
-  var getSessionAsync = session 
-    ? Promise.resolve(session)
-    : Promise.reject(new Error("Bitte einmalig anmelden mit `" + command + " login kundennummer [pin]`"))
+  const responseUrl = this.query.response_url
+  const userId = this.query.user_id
   var match
-  if ((match = /^login\s*(\w+)?\s*(\w+)?$/.exec(req.query.text))) {
-    session = null
+  if ((match = /^login\s*(\w+)?\s*(\w+)?$/.exec(this.query.text))) {
+    this.body = { text: "Anmelden..." }
     var customerId = match[1]
     var pin = match[2]
     if (!customerId) {
-      getSessionAsync = Promise.reject(new Error("Keine Kundennummer angegeben."))
-    } else {
+      return addEmployeeDirectory(slackMessage(responseUrl, "Keine Kundennummer angegeben.")).send()
+    }
+    if (!pin) {
+      EMPLOYEES.some(user => {
+        if (user.customerId == customerId) {
+          pin = user.pin
+          return true
+        }
+      })
       if (!pin) {
-        EMPLOYEES.some(function(user) {
-          if (user.customerId == customerId) {
-            pin = user.pin
-            return true
-          }
-        })
+        return addEmployeeDirectory(slackMessage(responseUrl, `Kein Mitarbeiter mit Kundennummer ${customerId} gefunden. Bitte mit Kundennummer und Pin anmelden`)).send()
       }
     }
-    if (!pin && customerId) {
-      getSessionAsync = Promise.reject(new Error("Kein Mitarbeiter mit Kundennummer " + customerId + " gefunden. Bitte mit Kundennummer und Pin einloggen"))
-    } else if (pin && customerId) {
-      getSessionAsync = loginAsync(customerId, pin)
-      .then(function(_session) {
-        session = _session
-        // Save the customerId (which is different for the API calls than the login customerId)
-        // It would all be much easier, if API calls would just need the accessToken and
-        // not an additional customerId in the URLs
-        session.customerId = session.customer.customerId
+    this.state.session = yield loginAsync(customerId, pin)
+      .then(session => {        
+        // .setItem returns not the `session` but an array of persisted items
+        // Each item contains the persist metadata but not the `session` itself
+        // Thats why we return the session ourself in the `.then` handler
         return storage.setItem(userId, session)
-      }).then(function() {
-        return session
+        .then(() => session)
       })
+  }
+  yield next
+})
+
+app.use(function* getUser(next) {
+  if (!this.state.session) {
+    const userId = this.query.user_id
+    if (!(this.state.session = storage.getItemSync(userId))) {
+      this.status = 401
+      return addEmployeeDirectory(slackMessage(this.response, "Bitte erst anmelden")).send()
     }
   }
-  getSessionAsync.then(function(session) {
-    // Old records had this not saved in this flattend way
-    session.customerId = session.customerId || session.customer.customerId
-    if (/balance/.test(req.query.text)) {
-      getBalanceAsync(session.accessToken)
-      .then(function(result) {
-        slackMessage(responseUrl, "Guthaben: " + formatCurrency(result.balance)).send()
-      }) 
-    } else {
-      // this does not work yet, make MS botbuilder work and help us here with date
-      // resolution
-      let date = moment()
-      var when
-      const setDays = [ 1, 1, 4, 4, 4, 8, 8 ]
-      if ((when = /(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/.exec(req.query.text))) {
-        switch (when[1]) {
-        case "tomorrow": date = date.add(1, "day"); break
-        case "monday": date = date.day(setDays[1]); break
-        case "tuesday": date = date.day(setDays[2]); break
-        case "wednesday": date = date.day(setDays[3]); break
-        case "thursday": date = date.day(setDays[4]); break
-        case "friday": date = date.day(setDays[5]); break
-        case "saturday":
-        case "sunday": {
-          return slackMessage(responseUrl, "Am Wochende wird doch nicht gearbeitet!").send()
-        }
-        }
-      }
+  yield next
+})
+
+app.use(function* main(next) {
+  yield next
+  const session = this.state.session
+  const responseUrl = this.query.response_url || this.response
+  
+  this.status = 200
+  this.body = ""
+
+  // Old records had this not saved in this flattend way
+  session.customerId = session.customerId || session.customer.customerId
+  recognizeAync(this.query.text || "today").then(result => {
+    const { intents, entities } = result 
+    switch (intents[0].intent) {
+    case "getBalance":
+      slackMessage(responseUrl, "Warte, ich schaue mal nach wieviel :euro: Du noch zum Bestellen hast...").send()
+      .then(() => (
+        getBalanceAsync(session.accessToken)
+          .then(function(result) {
+            const numberOfMeals = Math.round(result.balance / 3.1)
+            let text
+            if (!numberOfMeals) {
+              text = `Tut mir leid, für die ${formatCurrency(result.balance)}, die Du noch hast, kannst Du nichts mehr bestellen :crying_cat_face:`
+            }
+            else {
+              text = `${firstName(session.customer.name)} Du hast noch ${formatCurrency(result.balance)} zum Bestellen.\nDas reicht für ca. ${numberOfMeals} Menüs.`
+            }
+            slackMessage(responseUrl, text).send()
+          })
+      ))
+      break
+    case "showMenu":
+      const date = moment(builder.EntityRecognizer.resolveTime(entities) || entities[0])
+      slackMessage(responseUrl, `Mal sehen was es heute für Dich zu essen gibt, ${firstName(session.customer.name)}...`).send()
       getMenusForDay(session, date.toDate(), {
-        details: /details?/.test(req.query.text) 
+        details: /details?/.test(this.query.text) 
       }).then(function(menus) {
         if (!menus.length) {
           return slackMessage(
@@ -151,46 +199,20 @@ app.get("/", checkSlackToken, function(req, res) {
         var text = `${firstName(session.customer.name)}, für Dich gibt's ${date.calendar(null, {
           sameDay: "[heute]",
           nextDay: "[morgen]",
-          nextWeek: "dddd",
+          nextWeek: "dd",
         })}:` 
-        menus.map(function(menu) {
-          const message = slackMessage(responseUrl, text)
+        menus.map(menu => {
+          slackMessage(responseUrl, text)
           .attachMenu(menu)
-          if (menu.incredients) {
-            message.attach({
-              title: "Nährwerte",
-              fields: menu.incredients.map(function(incredient) {
-                return {
-                  title: incredient.name,
-                  value: `${incredient.amount} ${incredient.unit}`,
-                  short: true, 
-                }
-              }),
-            }) 
-          }
-          message.send()
+          .send()
         })
       })
-    }
-  }).catch(error => {
-    console.error(error)
-    if (!session) {
-      slackMessage(responseUrl, error.message)
-      .attach({
-        text: "Diese Mitarbeiter sind bekannt und können sich nur durch login mit der Kundennummer anmelden",
-        fields: EMPLOYEES.map(user =>({
-          title: user.name,
-          value: user.customerId,
-          short: true}))
-      }).send()
-    } else {  
-      //res.status(500).send(error.message)
     }
   })
 })
 
-var server = app.listen(1337, function () {
-  var host = server.address().address
-  var port = server.address().port
-  console.log("meyer menu bot listening at http://%s:%s", host, port)
+const server = app.listen(1337, () => {
+  const host = server.address().address
+  const port = server.address().port  
+  console.info("listening and serving lunch at %s:%s", host, port)
 })

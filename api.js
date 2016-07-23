@@ -49,15 +49,28 @@ const requestAsync = (method, path, data, accessToken) => {
   })
 }
 
+const getAsync = requestAsync.bind(this, "GET")
+
 const loginAsync = (customerId, pinCode) => {
   return requestAsync("POST", "/auth/login", { customerId, pinCode })
   .then(function(result) {
+    // Save the customerId (which is different for the API calls than the login customerId)
+    // It would all be much easier, if API calls would just need the accessToken and
+    // not an additional customerId in the URLs
     return {
       accessToken: result.response.headers.get("Access-Token"),
       customer: result.json,
+      customerId: result.json.customerId,
     }
   })
 }
+
+/**
+ * {"kundennr":"335515","salutation":"Herr","forename":"Philipp Kursawe","name":"evopark GmbH","street":"Sedanstra\u00dfe 31-33","zipcode":50668,"city":"K\u00f6ln","email":"philipp.kursawe@evopark.de","phone":"0221-16531770","bday":null,"invoiceforename":null,"invoicename":null,"invoicestreet":null,"invoicezipcode":null,"invoicecity":null,"account":null,"iban":null,"bic":null,"bank":null,"paymentMethod":"H"}
+ */
+const getProfileAsync = session => (
+  getAsync("/profile", null, session.accessToken)
+)
 
 function toJson(result) {
   return Promise.resolve(result.json)
@@ -69,7 +82,7 @@ function menusPath(customerId, date) {
 }
 
 function getMenusAsync({customerId, accessToken}, date, options) {
-  return requestAsync("GET", menusPath(customerId, date), null, accessToken)
+  return getAsync(menusPath(customerId, date), null, accessToken)
   .then(toJson)
   .then(menus => {
     if (options.filter) {
@@ -99,14 +112,14 @@ function getMenusForDay(session, date, options) {
 }
 
 const getKnownIncredientsAsync = () => (
-  requestAsync("GET", "/ingredients")
+  getAsync("/ingredients")
   .then(toJson)
-  .then(function(json) {
-    return json.reduce(function(result, incredient) {
+  .then(json => (
+    json.reduce(function(result, incredient) {
       result[incredient.id] = incredient
       return result
     },{})
-  })
+  ))
 )
 
 function resolveIncredients(knownIncredients, menu, incredients) {
@@ -125,7 +138,7 @@ function resolveIncredients(knownIncredients, menu, incredients) {
 const getIncredientsAsync = (menu, accessToken) => {
   const { year, week, day } = apiDate(menu.date)
   var path = `/ingredients/year/${year}/week/${week}/day/${day}/line/${menu.menulinid}`
-  return requestAsync("GET", path, null, accessToken)
+  return getAsync(path, null, accessToken)
   .then(toJson)
   .then(incredients => (
     getKnownIncredientsAsync().then(knownIncredients => (
@@ -150,10 +163,10 @@ function orderAsync(customerId, date, menu, amount, accessToken) {
   [{"customerId":"MzM1NTE1","line":628,"week":28,"year":2016,"day":0,"amount":1,"price":3.1,"isInstitutionOrdered":false},{"customerId":"MzM1NTE1","line":626,"week":28,"year":2016,"day":3,"amount":1,"price":3.1,"isInstitutionOrdered":false},{"customerId":"MzM1NTE1","line":630,"week":28,"year":2016,"day":2,"amount":1,"price":3.1,"isInstitutionOrdered":false},{"customerId":"MzM1NTE1","line":627,"week":28,"year":2016,"day":1,"amount":1,"price":3.1,"isInstitutionOrdered":false},{"customerId":"MzM1NTE1","line":627,"week":28,"year":2016,"day":4,"amount":1,"price":3.1,"isInstitutionOrdered":false}]*/
 }
 
-function getBalanceAsync(accessToken) {
-  return requestAsync("GET", "/prepaid", null, accessToken)
+const getBalanceAsync = accessToken => (
+  getAsync("/prepaid", null, accessToken)
   .then(toJson)
-}
+)
 
 function findDayWithoutMenuAsync(customerId, from, to, accessToken) {
   return getMenusAsync(customerId, from, accessToken)
@@ -161,6 +174,7 @@ function findDayWithoutMenuAsync(customerId, from, to, accessToken) {
 
 module.exports = {
   loginAsync,
+  getProfileAsync,
   getBalanceAsync,
   getMenusAsync,
   getMenusForDay,

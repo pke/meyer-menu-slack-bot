@@ -1,12 +1,19 @@
 {
   "name": "meyer-menu-bot",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "See your Meyer Menü orders in slack",
   "private": true,
   "main": "bot.js",
   "scripts": {
     "test": "eslint *.js",
     "start": "node bot.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pke/meyer-menu-slack-bot"
+  },
+  "bugs": {
+    "url": "https://github.com/pke/meyer-menu-slack-bot/issues"
   },
   "keywords": [
     "bot",
@@ -16,12 +23,13 @@
   "author": "Philipp Kursawe",
   "license": "MIT",
   "dependencies": {
-    "botbuilder": "^3.0.0",
-    "express": "^4.14.0",
+    "botbuilder": "^3.0.1",
     "isomorphic-fetch": "^2.2.1",
+    "koa": "^1.2.0",
     "moment": "^2.14.1",
-    "moment-parser": "^0.3.0",
-    "node-persist": "0.0.11"
+    "node-persist": "^0.0.11",
+    "winston": "^2.2.0",
+    "winston-papertrail": "^1.0.2"
   },
   "devDependencies": {
     "eslint": "^3.0.1",
