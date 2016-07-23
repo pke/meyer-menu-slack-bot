@@ -2,7 +2,7 @@ const storage = require("node-persist")
 const koa = require("koa")
 const moment = require("moment")
 
-require("./logging")
+//require("./logging")
 
 console.info("Bot started")
 
