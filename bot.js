@@ -164,7 +164,7 @@ app.use(function* main(next) {
 
   // Old records had this not saved in this flattend way
   session.customerId = session.customerId || session.customer.customerId
-  recognizeAync(this.query.text).then(result => {
+  recognizeAync(this.query.text || "today").then(result => {
     const { intents, entities } = result 
     switch (intents[0].intent) {
     case "getBalance":
