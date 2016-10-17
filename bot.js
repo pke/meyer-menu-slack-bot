@@ -167,7 +167,7 @@ app.use(function* main(next) {
   recognizeAync(this.query.text || "today").then(result => {
     const { intents, entities } = result 
     switch (intents[0].intent) {
-    case "getBalance":
+    case "getBalance": {
       slackMessage(responseUrl, "Warte, ich schaue mal nach wieviel :euro: Du noch zum Bestellen hast...").send()
       .then(() => (
         getBalanceAsync(session.accessToken)
@@ -184,7 +184,8 @@ app.use(function* main(next) {
           })
       ))
       break
-    case "showMenu":
+    }
+    case "showMenu": {
       const date = moment(builder.EntityRecognizer.resolveTime(entities) || entities[0])
       slackMessage(responseUrl, `Mal sehen was es heute für Dich zu essen gibt, ${firstName(session.customer.name)}...`).send()
       getMenusForDay(session, date.toDate(), {
@@ -207,7 +208,7 @@ app.use(function* main(next) {
           .send()
         })
       })
-    }
+    }}
   })
 })
 
