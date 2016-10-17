@@ -23,7 +23,7 @@ dialog.matches("showMenu", [
   },
 ])
 dialog.matches("orderMenu", [
-  function (session, args, next) {
+  function (session, args/*, next*/) {
     const menuType = builder.EntityRecognizer.findEntity(args.entities, "menuType")
     session.send(`Ok, ${menuType.entity} it is`)
   }
