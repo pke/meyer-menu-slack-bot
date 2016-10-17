@@ -212,7 +212,7 @@ app.use(function* main(next) {
   })
 })
 
-const server = app.listen(1337, () => {
+const server = app.listen(process.env.PORT || 1337, () => {
   const host = server.address().address
   const port = server.address().port  
   console.info("listening and serving lunch at %s:%s", host, port)
