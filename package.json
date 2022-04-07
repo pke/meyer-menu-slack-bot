@@ -30,7 +30,7 @@
     "koa": "^1.2.0",
     "moment": "^2.14.1",
     "node-persist": "^0.0.11",
-    "winston": "^2.2.0",
+    "winston": "^3.3.0",
     "winston-papertrail": "^1.0.2",
     "snyk": "^1.316.1"
   },
