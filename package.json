@@ -25,7 +25,7 @@
   "author": "Philipp Kursawe",
   "license": "MIT",
   "dependencies": {
-    "botbuilder": "^4.0.6",
+    "botbuilder": "^4.21.4",
     "isomorphic-fetch": "^2.2.1",
     "koa": "^1.2.0",
     "moment": "^2.14.1",
